@@ -30,6 +30,15 @@ type oauthUser struct {
 	Domain        string `json:"hd"`
 }
 
+type Client struct {
+	sm          *sessions.Manager
+	mu          sync.Mutex
+	m           map[string]*oauth2.Token
+	match       *regexp.Regexp
+	oauthState  string
+	oauthConfig *oauth2.Config
+}
+
 func (c *Client) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -105,11 +114,11 @@ func NewClient(token, secret, redirect string) *Client {
 	return c
 }
 
-type Client struct {
-	sm          *sessions.Manager
-	mu          sync.Mutex
-	m           map[string]*oauth2.Token
-	match       *regexp.Regexp
-	oauthState  string
-	oauthConfig *oauth2.Config
+// Email returns the email that is associated with the session passed in.
+//
+// We'd like to expose who is has a valid session, but I don't like this.  Fix
+// it.
+func (c *Client) Email(r *http.Request) string {
+	email, _ := c.sm.Get(r, "email")
+	return email
 }

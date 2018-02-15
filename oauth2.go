@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"regexp"
 	"sync"
@@ -77,13 +78,16 @@ func (c *Client) AuthHandler(w http.ResponseWriter, r *http.Request) {
 
 func (c *Client) ShimHandler(h http.Handler) http.Handler {
 	f := func(w http.ResponseWriter, r *http.Request) {
-		var email string
-		var err error
-		email, err = c.sm.Get(r, "email")
+		email, err := c.sm.Get(r, "email")
+		if err != nil {
+			log.Print(err)
+			http.Redirect(w, r, c.oauthConfig.AuthCodeURL(c.oauthState), http.StatusTemporaryRedirect)
+			return
+		}
 		c.mu.Lock()
-		tok := c.m[email]
+		tok, ok := c.m[email]
 		c.mu.Unlock()
-		if err != nil || tok == nil || !tok.Valid() {
+		if err != nil || !ok || tok == nil || !tok.Valid() {
 			http.Redirect(w, r, c.oauthConfig.AuthCodeURL(c.oauthState), http.StatusTemporaryRedirect)
 			return
 		}

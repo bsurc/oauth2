@@ -36,6 +36,8 @@ type Client struct {
 	mu          sync.Mutex
 	m           map[string]*oauth2.Token
 	match       *regexp.Regexp
+	wmu         sync.Mutex
+	whitelist   map[string]struct{}
 	oauthState  string
 	oauthConfig *oauth2.Config
 }
@@ -64,7 +66,9 @@ func (c *Client) AuthHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if !c.match.MatchString(u.Email) {
+	c.wmu.Lock()
+	_, ok := c.whitelist[u.Email]
+	if !c.match.MatchString(u.Email) && !ok {
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
@@ -96,7 +100,7 @@ func (c *Client) ShimHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(f)
 }
 
-func NewClient(token, secret, redirect string) *Client {
+func NewClient(token, secret, redirect, regex string) *Client {
 	c := &Client{
 		oauthConfig: &oauth2.Config{
 			ClientID:     token,
@@ -109,13 +113,28 @@ func NewClient(token, secret, redirect string) *Client {
 		},
 		sm:    sessions.NewManager(cookieName),
 		m:     map[string]*oauth2.Token{},
-		match: regexp.MustCompile(bsuEmail),
+		match: regexp.MustCompile(regex),
 	}
 
 	x := make([]byte, 32)
 	rand.Read(x)
 	c.oauthState = fmt.Sprintf("%x", x)
+	c.whitelist = map[string]struct{}{}
 	return c
+}
+
+func (c *Client) Grant(email string) {
+	c.wmu.Lock()
+	c.whitelist[email] = struct{}{}
+	c.wmu.Unlock()
+}
+
+func (c *Client) Revoke(email string) {
+	c.wmu.Lock()
+	if _, ok := c.whitelist[email]; ok {
+		delete(c.whitelist, email)
+	}
+	c.wmu.Unlock()
 }
 
 // Email returns the email that is associated with the session passed in.

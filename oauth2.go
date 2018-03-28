@@ -68,6 +68,7 @@ func (c *Client) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	c.wmu.Lock()
 	_, ok := c.whitelist[u.Email]
+	c.wmu.Unlock()
 	if !c.match.MatchString(u.Email) && !ok {
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
@@ -101,6 +102,9 @@ func (c *Client) ShimHandler(h http.Handler) http.Handler {
 }
 
 func NewClient(token, secret, redirect, regex string) *Client {
+	if regex == "" {
+		regex = `$^`
+	}
 	c := &Client{
 		oauthConfig: &oauth2.Config{
 			ClientID:     token,

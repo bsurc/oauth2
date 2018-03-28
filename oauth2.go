@@ -22,6 +22,7 @@ import (
 const (
 	cookieName = "bsuOAuthKey"
 	bsuEmail   = `^.+@(u\.)?boisestate.edu$`
+	noMatch    = `x^`
 )
 
 type oauthUser struct {
@@ -103,7 +104,7 @@ func (c *Client) ShimHandler(h http.Handler) http.Handler {
 
 func NewClient(token, secret, redirect, regex string) *Client {
 	if regex == "" {
-		regex = `$^`
+		regex = noMatch
 	}
 	c := &Client{
 		oauthConfig: &oauth2.Config{

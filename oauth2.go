@@ -21,8 +21,9 @@ import (
 
 const (
 	cookieName = "bsuOAuthKey"
-	bsuEmail   = `^.+@(u\.)?boisestate.edu$`
 	noMatch    = `x^`
+	// BSUEmail is a valid regexp for any BSU address
+	BSUEmail = `^.+@(u\.)?boisestate.edu$`
 )
 
 type oauthUser struct {
@@ -32,6 +33,9 @@ type oauthUser struct {
 	Domain        string `json:"hd"`
 }
 
+// Client supplies the ability to authenticate via OAuth2 on Google, but more
+// specifically for BSU people through Google.  Access for specific users can
+// be added, or using a regular expression.
 type Client struct {
 	sm          *sessions.Manager
 	mu          sync.Mutex
@@ -43,6 +47,7 @@ type Client struct {
 	oauthConfig *oauth2.Config
 }
 
+// AuthHandler
 func (c *Client) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -82,6 +87,7 @@ func (c *Client) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
+// ShimHandler
 func (c *Client) ShimHandler(h http.Handler) http.Handler {
 	f := func(w http.ResponseWriter, r *http.Request) {
 		email, err := c.sm.Get(r, "email")
@@ -102,6 +108,13 @@ func (c *Client) ShimHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(f)
 }
 
+// NewClient returns a client that has two helper functions, one is an
+// AuthHandler with needs to be installed at the same address as redirect, the
+// other is a Shim that checks for valid credentials and rejects the
+// unauthorized users.  If the regex is set, the email of the user must match
+// it.  Explicit Google or BSU emails can be set using Grant/Revoke.
+//
+// TODO(kyle): show Auth and Shim examples
 func NewClient(token, secret, redirect, regex string) *Client {
 	if regex == "" {
 		regex = noMatch
@@ -128,12 +141,14 @@ func NewClient(token, secret, redirect, regex string) *Client {
 	return c
 }
 
+// Grant allows the user with the supplied email access
 func (c *Client) Grant(email string) {
 	c.wmu.Lock()
 	c.whitelist[email] = struct{}{}
 	c.wmu.Unlock()
 }
 
+// Revoke removes the user with the supplied email from the whitelist
 func (c *Client) Revoke(email string) {
 	c.wmu.Lock()
 	if _, ok := c.whitelist[email]; ok {

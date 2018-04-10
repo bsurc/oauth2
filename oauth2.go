@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/bsurc/sessions"
@@ -45,6 +46,9 @@ type Client struct {
 	whitelist   map[string]struct{}
 	oauthState  string
 	oauthConfig *oauth2.Config
+	// When checking the whitelist governed by Grant/Revoke, check using
+	// ToLower()
+	CI bool
 }
 
 // AuthHandler
@@ -71,6 +75,9 @@ func (c *Client) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if c.CI {
+		u.Email = strings.ToLower(u.Email)
 	}
 	c.wmu.Lock()
 	_, ok := c.whitelist[u.Email]
@@ -143,6 +150,9 @@ func NewClient(token, secret, redirect, regex string) *Client {
 
 // Grant allows the user with the supplied email access
 func (c *Client) Grant(email string) {
+	if c.CI {
+		email = strings.ToLower(email)
+	}
 	c.wmu.Lock()
 	c.whitelist[email] = struct{}{}
 	c.wmu.Unlock()

@@ -5,6 +5,7 @@
 package oauth2
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 const (
 	cookieName = "bsuOAuthKey"
 	noMatch    = `x^`
+	emailScope = "https://www.googleapis.com/auth/userinfo.email"
 	// BSUEmail is a valid regexp for any BSU address
 	BSUEmail = `^.+@(u\.)?boisestate.edu$`
 )
@@ -42,10 +44,10 @@ type Client struct {
 	mu          sync.Mutex
 	m           map[string]*oauth2.Token
 	match       *regexp.Regexp
-	wmu         sync.Mutex
 	whitelist   map[string]struct{}
 	oauthState  string
 	oauthConfig *oauth2.Config
+	httpClients map[string]*http.Client
 	// When checking the whitelist governed by Grant/Revoke, check using
 	// ToLower()
 	CI bool
@@ -57,8 +59,9 @@ func (c *Client) AuthHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	tok, err := c.oauthConfig.Exchange(oauth2.NoContext, r.FormValue("code"))
+	tok, err := c.oauthConfig.Exchange(context.TODO(), r.FormValue("code"))
 	if err != nil {
+		log.Print("A")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -79,18 +82,18 @@ func (c *Client) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	if c.CI {
 		u.Email = strings.ToLower(u.Email)
 	}
-	c.wmu.Lock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	_, ok := c.whitelist[u.Email]
-	c.wmu.Unlock()
 	if !c.match.MatchString(u.Email) && !ok {
 		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 		return
 	}
 	c.sm.Set(w, r, "sub", u.Sub)
 	c.sm.Set(w, r, "email", u.Email)
-	c.mu.Lock()
 	c.m[u.Email] = tok
-	c.mu.Unlock()
+	c.httpClients[u.Email] = client
+
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
@@ -122,23 +125,33 @@ func (c *Client) ShimHandler(h http.Handler) http.Handler {
 // it.  Explicit Google or BSU emails can be set using Grant/Revoke.
 //
 // TODO(kyle): show Auth and Shim examples
-func NewClient(token, secret, redirect, regex string) *Client {
+func NewClient(token, secret, redirect, regex string, scopes []string) *Client {
 	if regex == "" {
 		regex = noMatch
+	}
+
+	hasEmailScope := false
+
+	for _, s := range scopes {
+		if s == emailScope {
+			hasEmailScope = true
+		}
+	}
+	if !hasEmailScope {
+		scopes = append(scopes, "https://www.googleapis.com/auth/userinfo.email")
 	}
 	c := &Client{
 		oauthConfig: &oauth2.Config{
 			ClientID:     token,
 			ClientSecret: secret,
 			RedirectURL:  redirect,
-			Scopes: []string{
-				"https://www.googleapis.com/auth/userinfo.email",
-			},
-			Endpoint: google.Endpoint,
+			Scopes:       scopes,
+			Endpoint:     google.Endpoint,
 		},
-		sm:    sessions.NewManager(cookieName),
-		m:     map[string]*oauth2.Token{},
-		match: regexp.MustCompile(regex),
+		sm:          sessions.NewManager(cookieName),
+		m:           map[string]*oauth2.Token{},
+		match:       regexp.MustCompile(regex),
+		httpClients: map[string]*http.Client{},
 	}
 
 	x := make([]byte, 32)
@@ -153,18 +166,18 @@ func (c *Client) Grant(email string) {
 	if c.CI {
 		email = strings.ToLower(email)
 	}
-	c.wmu.Lock()
+	c.mu.Lock()
 	c.whitelist[email] = struct{}{}
-	c.wmu.Unlock()
+	c.mu.Unlock()
 }
 
 // Revoke removes the user with the supplied email from the whitelist
 func (c *Client) Revoke(email string) {
-	c.wmu.Lock()
+	c.mu.Lock()
 	if _, ok := c.whitelist[email]; ok {
 		delete(c.whitelist, email)
 	}
-	c.wmu.Unlock()
+	c.mu.Unlock()
 }
 
 // Email returns the email that is associated with the session passed in.
@@ -174,4 +187,13 @@ func (c *Client) Revoke(email string) {
 func (c *Client) Email(r *http.Request) string {
 	email, _ := c.sm.Get(r, "email")
 	return email
+}
+
+func (c *Client) HTTPClient(r *http.Request) *http.Client {
+	email, _ := c.sm.Get(r, "email")
+	c.mu.Lock()
+	client := c.httpClients[email]
+	c.mu.Unlock()
+	log.Print(client)
+	return client
 }

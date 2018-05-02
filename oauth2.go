@@ -61,7 +61,6 @@ func (c *Client) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	tok, err := c.oauthConfig.Exchange(context.TODO(), r.FormValue("code"))
 	if err != nil {
-		log.Print("A")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -102,7 +101,6 @@ func (c *Client) ShimHandler(h http.Handler) http.Handler {
 	f := func(w http.ResponseWriter, r *http.Request) {
 		email, err := c.sm.Get(r, "email")
 		if err != nil {
-			log.Print(err)
 			http.Redirect(w, r, c.oauthConfig.AuthCodeURL(c.oauthState), http.StatusTemporaryRedirect)
 			return
 		}

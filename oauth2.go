@@ -116,6 +116,22 @@ func (c *Client) ShimHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(f)
 }
 
+// Config holds the information necessary to create a new client
+type Config struct {
+	// Token is the google OAuth2 client id
+	Token string
+	// Secret is the google OAuth2 client secret
+	Secret string
+	// RedirectURL is the URL to redirect to after authentication
+	RedirectURL string
+	// Regexp is the regular expression string that emails must match for access
+	Regexp string
+	// Scopes are the OAuth2 scopes.  The email scope is always set.
+	Scopes []string
+	// Cookie name is the name of the cookie that stores session information
+	CookieName string
+}
+
 // NewClient returns a client that has two helper functions, one is an
 // AuthHandler with needs to be installed at the same address as redirect, the
 // other is a Shim that checks for valid credentials and rejects the
@@ -123,40 +139,49 @@ func (c *Client) ShimHandler(h http.Handler) http.Handler {
 // it.  Explicit Google or BSU emails can be set using Grant/Revoke.
 //
 // TODO(kyle): show Auth and Shim examples
-func NewClient(token, secret, redirect, regex string, scopes []string) *Client {
-	if regex == "" {
-		regex = noMatch
+func NewClient(c Config) (*Client, error) {
+	if c.CookieName == "" {
+		return nil, fmt.Errorf("must supply a cookie name")
+	}
+	if c.Regexp == "" {
+		c.Regexp = noMatch
 	}
 
 	hasEmailScope := false
 
-	for _, s := range scopes {
+	for _, s := range c.Scopes {
 		if s == emailScope {
 			hasEmailScope = true
 		}
 	}
 	if !hasEmailScope {
-		scopes = append(scopes, "https://www.googleapis.com/auth/userinfo.email")
+		c.Scopes = append(c.Scopes, "https://www.googleapis.com/auth/userinfo.email")
 	}
-	c := &Client{
+
+	match, err := regexp.Compile(c.Regexp)
+	if err != nil {
+		return nil, err
+	}
+
+	oc := &Client{
 		oauthConfig: &oauth2.Config{
-			ClientID:     token,
-			ClientSecret: secret,
-			RedirectURL:  redirect,
-			Scopes:       scopes,
+			ClientID:     c.Token,
+			ClientSecret: c.Secret,
+			RedirectURL:  c.RedirectURL,
+			Scopes:       c.Scopes,
 			Endpoint:     google.Endpoint,
 		},
-		sm:          sessions.NewManager(cookieName),
+		sm:          sessions.NewManager(c.CookieName),
 		m:           map[string]*oauth2.Token{},
-		match:       regexp.MustCompile(regex),
 		httpClients: map[string]*http.Client{},
+		match:       match,
 	}
 
 	x := make([]byte, 32)
 	rand.Read(x)
-	c.oauthState = fmt.Sprintf("%x", x)
-	c.whitelist = map[string]struct{}{}
-	return c
+	oc.oauthState = fmt.Sprintf("%x", x)
+	oc.whitelist = map[string]struct{}{}
+	return oc, nil
 }
 
 // Grant allows the user with the supplied email access

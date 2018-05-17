@@ -101,6 +101,7 @@ func (c *Client) ShimHandler(h http.Handler) http.Handler {
 	f := func(w http.ResponseWriter, r *http.Request) {
 		email, err := c.sm.Get(r, "email")
 		if err != nil {
+			log.Print(err)
 			http.Redirect(w, r, c.oauthConfig.AuthCodeURL(c.oauthState), http.StatusTemporaryRedirect)
 			return
 		}
@@ -108,6 +109,7 @@ func (c *Client) ShimHandler(h http.Handler) http.Handler {
 		tok, ok := c.m[email]
 		c.mu.Unlock()
 		if err != nil || !ok || tok == nil || !tok.Valid() {
+			log.Print(err)
 			http.Redirect(w, r, c.oauthConfig.AuthCodeURL(c.oauthState), http.StatusTemporaryRedirect)
 			return
 		}

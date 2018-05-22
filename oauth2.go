@@ -219,6 +219,5 @@ func (c *Client) HTTPClient(r *http.Request) *http.Client {
 	c.mu.Lock()
 	client := c.httpClients[email]
 	c.mu.Unlock()
-	log.Print(client)
 	return client
 }

@@ -58,6 +58,13 @@ func (c *Client) AuthHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// Check the state that was sent with the request
+	if r.FormValue("state") != c.oauthState {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
+
 	tok, err := c.oauthConfig.Exchange(context.TODO(), r.FormValue("code"))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -101,7 +108,7 @@ func (c *Client) ShimHandler(h http.Handler) http.Handler {
 		email, err := c.sm.Get(r, "email")
 		if err != nil {
 			log.Print(err)
-			http.Redirect(w, r, c.oauthConfig.AuthCodeURL(c.oauthState), http.StatusTemporaryRedirect)
+			http.Redirect(w, r, c.oauthConfig.AuthCodeURL(c.oauthState, oauth2.AccessTypeOffline), http.StatusTemporaryRedirect)
 			return
 		}
 		c.mu.Lock()
@@ -109,7 +116,7 @@ func (c *Client) ShimHandler(h http.Handler) http.Handler {
 		c.mu.Unlock()
 		if err != nil || !ok || tok == nil || !tok.Valid() {
 			log.Print(err)
-			http.Redirect(w, r, c.oauthConfig.AuthCodeURL(c.oauthState), http.StatusTemporaryRedirect)
+			http.Redirect(w, r, c.oauthConfig.AuthCodeURL(c.oauthState, oauth2.AccessTypeOffline), http.StatusTemporaryRedirect)
 			return
 		}
 		h.ServeHTTP(w, r)

@@ -22,7 +22,6 @@ import (
 )
 
 const (
-	cookieName = "bsuOAuthKey"
 	noMatch    = `x^`
 	emailScope = "https://www.googleapis.com/auth/userinfo.email"
 	// BSUEmail is a valid regexp for any BSU address
@@ -219,6 +218,5 @@ func (c *Client) HTTPClient(r *http.Request) *http.Client {
 	c.mu.Lock()
 	client := c.httpClients[email]
 	c.mu.Unlock()
-	log.Print(client)
 	return client
 }

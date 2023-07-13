@@ -9,7 +9,6 @@ require (
 
 require (
 	cloud.google.com/go/compute v1.21.0 // indirect
-	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	golang.org/x/net v0.12.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect

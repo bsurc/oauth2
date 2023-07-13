@@ -102,6 +102,8 @@ func (c *Client) AuthHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
+type OAuthCtxKey string
+
 // ShimHandler
 func (c *Client) ShimHandler(h http.Handler) http.Handler {
 	f := func(w http.ResponseWriter, r *http.Request) {
@@ -119,6 +121,8 @@ func (c *Client) ShimHandler(h http.Handler) http.Handler {
 			http.Redirect(w, r, c.oauthConfig.AuthCodeURL(c.oauthState, oauth2.AccessTypeOffline), http.StatusTemporaryRedirect)
 			return
 		}
+		ctx := context.WithValue(r.Context(), OAuthCtxKey("email"), email)
+		r = r.WithContext(ctx)
 		h.ServeHTTP(w, r)
 	}
 	return http.HandlerFunc(f)

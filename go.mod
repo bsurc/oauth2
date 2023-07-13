@@ -4,13 +4,14 @@ go 1.20
 
 require (
 	github.com/bsurc/sessions v0.1.1
-	golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be
+	golang.org/x/oauth2 v0.10.0
 )
 
 require (
-	cloud.google.com/go v0.28.0 // indirect
-	github.com/golang/protobuf v1.2.0 // indirect
-	golang.org/x/net v0.0.0-20180925072008-f04abc6bdfa7 // indirect
-	golang.org/x/sync v0.0.0-20180314180146-1d60e4601c6f // indirect
-	google.golang.org/appengine v1.2.0 // indirect
+	cloud.google.com/go/compute v1.20.1 // indirect
+	cloud.google.com/go/compute/metadata v0.2.3 // indirect
+	github.com/golang/protobuf v1.5.3 // indirect
+	golang.org/x/net v0.12.0 // indirect
+	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/protobuf v1.31.0 // indirect
 )
